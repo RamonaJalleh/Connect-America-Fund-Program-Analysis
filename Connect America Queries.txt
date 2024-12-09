@@ -1,0 +1,178 @@
+Connect America Queries 
+
+*****************Budget Allocations ********************
+
+***Avg Monthly allocatiion by state ***
+
+SELECT state, fund_type,   
+AVG(amt_disbursed) AS avg_monthly_disbursement 
+FROM studyarea JOIN funding  
+ON studyarea.form_id = funding.form_id 
+Group BY state, fund_type 
+ORDER BY state 
+
+
+***Discrepancies ***
+
+SELECT state, 
+	SUM(uncapped_support-capped_support) AS Discrepancy
+FROM StudyArea
+JOIN Funding
+ON StudyArea.Form_ID = Funding.Form_ID
+GROUP BY SAC, StudyArea_Name, State
+Order By Discrepancy DESC
+LIMIT 10;
+
+***Underutilization***
+
+SELECT funding_date,  
+SUM(amt_disbursed) AS total_disbursed,     
+SUM(subtotal_beforebudget) as budget_total 
+FROM studyarea JOIN funding  
+ON studyarea.form_id = funding.form_id 
+Group BY funding_date 
+HAVING SUM(amt_disbursed) < SUM(subtotal_beforebudget) 
+ORDER BY funding_date
+
+
+***************** Spending Trends ************************
+
+***Spending by month & fundtype ***
+
+SELECT  YEAR(funding_date) AS year,   
+MONTH(funding_date) AS month,         
+fund_type,        
+ SUM(amt_disbursed) AS total_disbursed 
+ FROM studyarea 
+ JOIN funding  
+ ON studyarea.form_id = funding.form_id 
+ Group BY year, month, fund_type
+ ORDER BY year, month 
+
+***Year over year query ***
+
+WITH yearly_disbursements AS ( 
+	SELECT state, 
+		YEAR(funding_date) AS year,
+        SUM(amt_disbursed) AS total_disbursed
+	FROM studyarea
+	JOIN funding 
+	ON studyarea.form_id = funding.form_id
+	Group BY state, year(funding_date)
+    )
+
+ SELECT state, year, total_disbursed, 
+	LAG(total_disbursed) OVER (Partition BY state ORDER BY year) As previous_year_disbursement,
+    total_disbursed - LAG(total_disbursed) Over (partition by state Order By year)as yoy_change
+FROM yearly_disbursements
+ORDER BY state,year;
+
+**** Avg 3 month rolling by month/fundtype ***
+
+WITH funding_and_state AS( 
+	SELECT   s.fund_type, S.state, 
+		YEAR(funding_date) AS year,
+		MONTH(funding_date) AS month,
+        F.amt_disbursed
+	FROM studyarea S
+	JOIN funding F
+	ON S.form_id = F.form_id
+	Group By state, fund_type, amt_disbursed, year, month
+	ORDER BY year, month
+    )
+    
+ SELECT  fund_type, state, year, month, amt_disbursed,
+	AVG(amt_Disbursed) OVER(Partition BY state ORDER BY year, month Rows Between 2 preceding and current row) AS rolling_3m_avg
+FROM funding_and_state
+order by year, month;
+
+***************** Funding Disparities **************
+
+***Rank States by Total Disbursement Over Time***
+
+SELECT state,
+	Extract(YEAR FROM funding_date) AS year,
+	SUM(amt_disbursed) AS total_disbursed
+FROM studyarea 
+JOIN funding
+ON studyarea.Form_id = funding.form_id 
+Group By state, year
+ORder By  year,  total_disbursed DESC;
+
+*** Below Average Funding ***
+
+WITH avg_disbursement AS ( 	
+    SELECT state, studyarea_name, fund_type, 
+    Avg(amt_disbursed) as avg_fund_disb
+	FROM studyarea 
+	JOIN funding
+	ON studyarea.Form_id = funding.form_id 
+	Group By state, fund_type, studyarea_name
+	)
+SELECT  Studyarea.fund_type,
+	Avg(amt_disbursed) as avg_fund_disb,
+    amt_disbursed, studyarea.studyarea_name
+FROM funding 
+JOIN Studyarea 
+ON Studyarea.Form_id = Funding.Form_ID
+JOIN avg_disbursement  
+ON Studyarea.fund_type = avg_disbursement.fund_type
+WHERE funding.amt_disbursed < avg_disbursement.avg_fund_disb
+GROUP BY  studyarea.fund_type, amt_disbursed, Studyarea.Studyarea_name
+ORDER By Studyarea.fund_type, avg_fund_disb DESC;
+
+*** Top and Bottom 5 States by Total Disbursement *** 
+
+
+
+
+*****************Performance and Compliance***********
+*** Delayed Disbursements**
+SELECT Extract( Year from funding_date)as Year,
+	Extract( month from funding_date) as month,
+	COUNT(*) AS delayed_disbursements
+FROM Funding
+WHERE capped_support < amt_disbursed
+GROUP BY year, month
+ORDER BY year, month;
+SELECT Extract( Year from funding_date)as Year,
+	Extract( month from funding_date) as month,
+	COUNT(*) AS delayed_disbursements
+FROM Funding
+WHERE capped_support < amt_disbursed
+GROUP BY year, month
+ORDER BY year, month;
+
+*** Top 5 States by Fund Utilization Efficiency *** 
+
+SELECT state, 
+       ROUND(SUM(capped_support) / NULLIF(SUM(uncapped_support), 0) * 100, 2) AS utilization_efficiency
+FROM Funding
+Join StudyArea
+ON studyarea.form_id = funding.form_id
+GROUP BY state
+ORDER BY utilization_efficiency DESC
+LIMIT 5;
+
+*** Average Disbursement Compliance Check *** 
+
+WITH avg_budget AS (
+  SELECT fund_type,
+  AVG(amt_disbursed) AS avg_disbursed
+  FROM Funding 
+  Join StudyArea
+  ON StudyArea.Form_ID = Funding.Form_ID
+  GROUP BY fund_type
+)
+SELECT studyarea.studyarea_name, studyarea.fund_type, funding.amt_disbursed, avg_budget.avg_disbursed,
+       CASE 
+           WHEN Funding.amt_disbursed > avg_budget.avg_disbursed THEN 'Above Average'
+           WHEN Funding.amt_disbursed = avg_budget.avg_disbursed THEN 'At Average'
+           ELSE 'Below Average'
+       END AS compliance_status
+FROM Funding 
+JOIN StudyArea
+ON funding.form_id = studyarea.form_id
+JOIN avg_budget 
+ON avg_budget.fund_type = avg_budget.fund_type
+ORDER BY compliance_status ASC;
