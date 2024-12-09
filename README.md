@@ -1,6 +1,8 @@
 # Connect America Overview
 Connect America was created about 10 years ago to disburse funding to Eligible Telecommunications Carriers to provide voice and broadband services in rural America. This project reviews  data from 2024  back to 2014 and analyzes budget allocation, spending trends, disparities and compliance within the program. This large data set before it was cleaned and prepared contained 1,048,569 rows of data. 
 
+Click this Link ⬇️ to view in Tableau ⬇️
+
 [Connect America Funding _ Program Analysis](https://public.tableau.com/views/ConnectAmericaFundProgramAnalysis/ConnectAmericaFundingProgramAnalysis?:language=en-US&:sid=&:redirect=auth&:display_count=n&:origin=viz_share_link)
 ![Screenshot Dashboard CAF](https://github.com/user-attachments/assets/e8204cd9-addb-4c1c-b728-1c5f7a728775)
 
